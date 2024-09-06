@@ -28,7 +28,7 @@ jobs:
     strategy:
       matrix:
         target: [linux-x86_64, darwin-x86_64, darwin-arm64, windows-x86_64]
-        build_type: [dev, debug, release]
+        build_type: [release]
         include:
           - target: windows-x86_64
             os: windows-latest
@@ -87,54 +87,9 @@ jobs:
           name: ${{ env.ARTIFACT_NAME }}
           path: ${{ env.ARTIFACT_NAME }}.zip
 
-  build-vscode:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Install Nodejs
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Checkout v-analyzer
-        uses: actions/checkout@v4
-
-      - name: Compile
-        id: compile
-        shell: bash
-        run: |
-          pushd editors/code
-          version=$(sed -E -n 's/^\s+"version": "([^"]+)".*/\1/gp' package.json)
-          echo "VERSION=$version" >> "$GITHUB_OUTPUT"
-          retry=0
-          echo "[+] Install dependencies"
-          npm install
-          echo "[+] Package start"
-          set +e
-          while [[ ${retry} < 3 ]]; do
-            if npm run package; then
-              echo "[+] Package done"
-              break
-            else
-              sleep 1
-              let retry++
-              echo "[+] Package fail, ${retry} retry"
-            fi
-          done
-          set -e
-          popd
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        env:
-          ARTIFACT_NAME: vscode-${{ env.PROJECT_NAME }}-${{ steps.compile.outputs.VERSION }}
-        with:
-          name: ${{ env.ARTIFACT_NAME }}
-          path: editors/code/${{ env.ARTIFACT_NAME }}.vsix
-
   release:
     runs-on: ubuntu-latest
-    needs: [build-v-analyzer, build-vscode]
+    needs: build-v-analyzer
 
     steps:
       - name: Download artifacts
