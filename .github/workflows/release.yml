@@ -24,6 +24,7 @@ env:
 
 jobs:
   build-v-analyzer:
+    permissions: write-all
     strategy:
       matrix:
         target: [linux-x86_64, darwin-x86_64, darwin-arm64, windows-x86_64]
