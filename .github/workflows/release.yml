@@ -82,7 +82,7 @@ jobs:
           ARTIFACT_NAME: ${{ env.PROJECT_NAME }}-${{ matrix.target }}${{ steps.compile.outputs.SUFFIX }}
         with:
           name: ${{ env.ARTIFACT_NAME }}
-          path: ./bin/v-analyzer${{ matrix.bin_ext }}
+          path: ./bin/v-analyzer${{ steps.compile.outputs.SUFFIX }}
 
   release:
     runs-on: ubuntu-latest
