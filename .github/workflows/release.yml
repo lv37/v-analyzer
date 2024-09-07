@@ -69,6 +69,9 @@ jobs:
             strip --strip-unneeded ./bin/v-analyzer${{ matrix.bin_ext }}
             strip --discard-all ./bin/v-analyzer${{ matrix.bin_ext }}
           fi
+          if [[ "${{ matrix.os }}" != "windows-latest" ]]; then
+            chmod +x ./bin/v-analyzer${{ matrix.bin_ext }}
+          fi
           if [[ "${{ matrix.build_type }}" != "release" ]]; then
             echo "SUFFIX=-${{ matrix.build_type }}" >> "$GITHUB_OUTPUT"
           fi
