@@ -72,8 +72,8 @@ jobs:
           if [[ "${{ matrix.os }}" != "windows-latest" ]]; then
             chmod +x ./bin/v-analyzer${{ matrix.bin_ext }}
           fi
-          if [[ "${{ matrix.build_type }}" != "release" ]]; then
-            echo "SUFFIX=-${{ matrix.build_type }}" >> "$GITHUB_OUTPUT"
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            echo "SUFFIX=.exe" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Upload artifact
