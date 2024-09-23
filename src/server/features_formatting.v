@@ -14,16 +14,17 @@ pub fn (mut ls LanguageServer) formatting(params lsp.DocumentFormattingParams) !
 		return error('Cannot write temp file for formatting: ${err}')
 	}
 
-	mut fmt_proc := ls.launch_tool('fmt', server.temp_formatting_file_path)!
+	mut fmt_proc := ls.launch_tool('fmt', server.temp_formatting_file_path) or { return [] }
 	defer {
 		fmt_proc.close()
 	}
 	fmt_proc.wait()
 
 	if fmt_proc.code != 0 {
-		errors := fmt_proc.stderr_slurp().trim_space()
-		ls.client.show_message(errors, .info)
-		return error('Formatting failed: ${errors}')
+		// errors := fmt_proc.stderr_slurp().trim_space()
+		// ls.client.show_message(errors, .info)
+		return []
+		// return error('Formatting failed: ${errors}')
 	}
 
 	mut output := fmt_proc.stdout_slurp()
