@@ -19,13 +19,12 @@ pub fn (mut ls LanguageServer) formatting(params lsp.DocumentFormattingParams) !
 		'uri': file.uri.str()
 	}).info('Formatting file')
 
-	mut fmt_proc := ls.launch_tool('fmt', os.norm_path(temp_formatting_file_path))!
+	mut fmt_proc := ls.launch_tool('fmt', os.norm_path(temp_formatting_file_path)) or { return [] }
 	defer {
 		fmt_proc.close()
 	}
 	fmt_proc.run()
 
-	// read entire output until EOF
 	mut output := fmt_proc.stdout_slurp()
 	fmt_proc.wait()
 
@@ -34,15 +33,15 @@ pub fn (mut ls LanguageServer) formatting(params lsp.DocumentFormattingParams) !
 		'status': fmt_proc.status.str()
 	}).info('Formatting finished')
 
-	$if windows {
-		output = output.replace('\r\r', '\r')
+	if fmt_proc.code != 0 {
+		// errors := fmt_proc.stderr_slurp().trim_space()
+		// ls.client.show_message(errors, .info)
+		return []
+		// return error('Formatting failed: ${errors}')
 	}
 
-	if fmt_proc.code != 0 && fmt_proc.status == .exited {
-		errors := fmt_proc.stderr_slurp().trim_space()
-		ls.client.show_message(errors, .info)
-		return error('Formatting failed: ${errors}')
-		// return []
+	$if windows {
+		output = output.replace('\r\r', '\r')
 	}
 
 	return [
