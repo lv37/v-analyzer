@@ -5,7 +5,6 @@ import os
 import json
 import term
 import time
-import compress.szip
 import cli
 import net.http
 
@@ -73,6 +72,9 @@ fn check_updates(release_type string) ! {
 }
 
 fn stable_version(ver string) string {
+	if ver == 'nightly' {
+		return '99.99.99'
+	}
 	return ver.split('.')#[..4].join('.')
 }
 
@@ -146,12 +148,17 @@ fn install_from_binary(asset ReleaseAsset, update bool) ! {
 		return
 	}
 
-	szip.extract_zip_to_dir(archive_temp_path, analyzer_bin_dir_path) or {
+	os.mv(archive_temp_path, analyzer_bin_file_path) or {
 		println('Failed to extract archive: ${err}')
 		return
 	}
 
 	println('${term.green('✓')} Successfully extracted ${term.bold('v-analyzer')} archive')
+
+	os.chmod(analyzer_bin_file_path, 0o777) or {
+		println('Failed to make executable: ${err}')
+		return
+	}
 
 	if update {
 		println('${term.green('✓')} ${term.bold('v-analyzer')} successfully updated to ${term.bold(asset.tag_name)}')
@@ -170,7 +177,7 @@ fn install_from_binary(asset ReleaseAsset, update bool) ! {
 }
 
 fn find_latest_asset(release_type string) !ReleaseAsset {
-	text := http.get_text('https://api.github.com/repos/vlang/v-analyzer/releases/latest')
+	text := http.get_text('https://api.github.com/repos/lv37/v-analyzer/releases/tags/nightly')
 	res := json.decode(ReleaseInfo, text) or {
 		errorln('Failed to decode JSON response from GitHub: ${err}')
 		return error('Failed to decode JSON response from GitHub: ${err}')
@@ -181,9 +188,13 @@ fn find_latest_asset(release_type string) !ReleaseAsset {
 	arch := arch_name() or { return error('Unsupported architecture') }
 
 	mut filename := build_os_arch(os_, arch)
+	$if windows {
+		filename += '.exe'
+	}
 	if release_type != '' {
 		filename += '-${release_type}'
 	}
+
 	asset := res.assets.filter(it.os_arch() == filename)[0] or {
 		return error('Unsupported OS or architecture')
 	}
@@ -304,7 +315,7 @@ fn install_from_sources(no_interaction bool) ! {
 			warnln('${term.bold('v-analyzer')} is not installed!')
 			println('')
 			println('${term.bold('[NOTE]')} If you want to build it from sources manually, run the following commands:')
-			println('git clone ${git_clone_options} https://github.com/vlang/v-analyzer.git')
+			println('git clone ${git_clone_options} https://github.com/lv37/v-analyzer.git')
 			println('cd v-analyzer')
 			println('v build.vsh')
 			println(term.gray('# Optionally you can move the binary to the standard location:'))
@@ -333,7 +344,7 @@ fn install_from_sources(no_interaction bool) ! {
 fn clone_repository() ! {
 	println('Cloning ${term.bold('v-analyzer')} repository...')
 
-	exit_code := run_command('git clone ${git_clone_options} https://github.com/vlang/v-analyzer.git ${analyzer_sources_dir_path} 2>&1') or {
+	exit_code := run_command('git clone ${git_clone_options} https://github.com/lv37/v-analyzer.git ${analyzer_sources_dir_path} 2>&1') or {
 		errorln('Failed to clone v-analyzer repository: ${err}')
 		return
 	}
@@ -491,67 +502,67 @@ pub fn get_release_type(cmd cli.Command) string {
 
 fn main() {
 	println('Installer version: ${term.bold(installer_version)}')
-	mut cmd := cli.Command{
-		name:        'v-analyzer-installer-updated'
-		version:     installer_version
-		description: 'Install and update v-analyzer'
-		posix_mode:  true
-		execute:     fn (cmd cli.Command) ! {
-			no_interaction := cmd.flags.get_bool('no-interaction') or { is_github_job }
-			release_type := get_release_type(cmd)
-			install(no_interaction, release_type)!
-		}
-		flags:       [
-			cli.Flag{
-				flag:        .bool
-				name:        'no-interaction' // Used primarily for VS Code extension, to install v-analyzer from sources
-				description: 'Do not ask any questions, use default values'
-			},
-		]
+mut cmd := cli.Command{
+	name:        'v-analyzer-installer-updated'
+	version:     installer_version
+	description: 'Install and update v-analyzer'
+	posix_mode:  true
+	execute:     fn (cmd cli.Command) ! {
+		no_interaction := cmd.flags.get_bool('no-interaction') or { is_github_job }
+		release_type := get_release_type(cmd)
+		install(no_interaction, release_type)!
 	}
+	flags:       [
+		cli.Flag{
+			flag:        .bool
+			name:        'no-interaction' // Used primarily for VS Code extension, to install v-analyzer from sources
+			description: 'Do not ask any questions, use default values'
+		},
+	]
+}
 
-	cmd.add_command(cli.Command{
-		name:        'up'
-		description: 'Update v-analyzer to the latest version'
-		posix_mode:  true
-		execute:     fn (cmd cli.Command) ! {
-			nightly := cmd.flags.get_bool('nightly') or { false }
-			release_type := get_release_type(cmd)
-			update(nightly, release_type)!
+cmd.add_command(cli.Command{
+	name:        'up'
+	description: 'Update v-analyzer to the latest version'
+	posix_mode:  true
+	execute:     fn (cmd cli.Command) ! {
+		nightly := cmd.flags.get_bool('nightly') or { false }
+		release_type := get_release_type(cmd)
+		update(nightly, release_type)!
+	}
+	flags:       [
+		cli.Flag{
+			flag:        .bool
+			name:        'nightly'
+			description: 'Install the latest nightly build'
+		},
+	]
+})
+
+cmd.add_command(cli.Command{
+	name:        'check-availability'
+	description: 'Check if v-analyzer binary is available for the current platform (service command for editors)'
+	posix_mode:  true
+	execute:     fn (cmd cli.Command) ! {
+		release_type := get_release_type(cmd)
+		find_latest_asset(release_type) or {
+			println('Prebuild v-analyzer binary is not available for your platform')
+			return
 		}
-		flags:       [
-			cli.Flag{
-				flag:        .bool
-				name:        'nightly'
-				description: 'Install the latest nightly build'
-			},
-		]
-	})
 
-	cmd.add_command(cli.Command{
-		name:        'check-availability'
-		description: 'Check if v-analyzer binary is available for the current platform (service command for editors)'
-		posix_mode:  true
-		execute:     fn (cmd cli.Command) ! {
-			release_type := get_release_type(cmd)
-			find_latest_asset(release_type) or {
-				println('Prebuild v-analyzer binary is not available for your platform')
-				return
-			}
+		println('${term.green('✓')} Prebuild v-analyzer binary is available for your platform')
+	}
+})
 
-			println('${term.green('✓')} Prebuild v-analyzer binary is available for your platform')
-		}
-	})
+cmd.add_command(cli.Command{
+	name:        'check-updates'
+	description: 'Checks for v-analyzer updates.'
+	posix_mode:  true
+	execute:     fn (cmd cli.Command) ! {
+		release_type := get_release_type(cmd)
+		check_updates(release_type)!
+	}
+})
 
-	cmd.add_command(cli.Command{
-		name:        'check-updates'
-		description: 'Checks for v-analyzer updates.'
-		posix_mode:  true
-		execute:     fn (cmd cli.Command) ! {
-			release_type := get_release_type(cmd)
-			check_updates(release_type)!
-		}
-	})
-
-	cmd.parse(os.args)
+cmd.parse(os.args)
 }
